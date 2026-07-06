@@ -38,6 +38,22 @@ public class LifeAssessmentService {
     @Transactional
     public LifeAssessmentResDTO createAssessment(Authentication authentication, LifeAssessmentCreateReqDTO request) {
         UserAccount user = userService.getCurrentUser(authentication);
+        user.updateProfile(
+                null,
+                null,
+                null,
+                request.regionSido(),
+                request.regionSigungu(),
+                request.householdType(),
+                request.annualIncomeRange(),
+                request.assetRange(),
+                request.housingType(),
+                request.hasDependentChildren(),
+                request.basicLivelihoodRecipient(),
+                request.nearPoverty(),
+                request.singleParent(),
+                request.disabledPerson()
+        );
 
         LifeAssessment assessment = LifeAssessment.builder()
                 .userAccount(user)
