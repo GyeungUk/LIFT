@@ -1,0 +1,8 @@
+.DS_Store
+.gradle
+.idea
+.claude
+build
+frontend
+tmp
+*.log
