@@ -13,6 +13,11 @@ export function saveToken(token: string): void {
 
 export function startDemoSession(): void {
   if (typeof window === "undefined") return;
+  for (const key of Object.keys(window.localStorage)) {
+    if (key.startsWith("lift.demo.")) {
+      window.localStorage.removeItem(key);
+    }
+  }
   window.localStorage.setItem(DEMO_KEY, "1");
   window.localStorage.setItem(TOKEN_KEY, DEMO_TOKEN);
 }
