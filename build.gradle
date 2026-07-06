@@ -29,8 +29,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testCompileOnly 'org.projectlombok:lombok'
-    // 운영 DB가 아직 구성되지 않아 로컬 실행 시에도 H2를 사용한다. 운영 datasource 연결 시 testRuntimeOnly로 되돌릴 것.
+    // 로컬/테스트 기본 DB는 H2, 배포 환경의 영구 DB는 PostgreSQL을 사용한다.
     runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
 

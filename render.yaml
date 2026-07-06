@@ -12,6 +12,14 @@ services:
         value: 1h
       - key: AUTH_REFRESH_TOKEN_TTL
         value: 14d
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: update
       - key: LIFT_CORS_ALLOWED_ORIGINS
         value: https://your-lift-frontend.netlify.app
       - key: LIFT_BASE_URL
