@@ -12,9 +12,9 @@ services:
         value: 1h
       - key: AUTH_REFRESH_TOKEN_TTL
         value: 14d
-      - key: BODEUM_CORS_ALLOWED_ORIGINS
+      - key: LIFT_CORS_ALLOWED_ORIGINS
         value: https://your-lift-frontend.netlify.app
-      - key: BODEUM_BASE_URL
+      - key: LIFT_BASE_URL
         value: https://lift-api.onrender.com
       - key: OAUTH_MOCK_ENABLED
         value: true

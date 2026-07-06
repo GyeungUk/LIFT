@@ -1,7 +1,7 @@
 # LIFT — 프론트엔드 (Next.js)
 
 생애전환(퇴직·이직·실직) 행정 준비 플랫폼의 웹 프론트엔드입니다.
-백엔드(Spring Boot, `../`)의 `com.bodeum.domain.lifetransition` API를 사용합니다.
+백엔드(Spring Boot, `../`)의 `com.lift.domain.lifetransition` API를 사용합니다.
 
 ## 실행
 
@@ -19,7 +19,7 @@
    ```
 
 > 백엔드 `SecurityConfig`에 CORS 허용 오리진이 설정되어 있습니다
-> (`bodeum.cors.allowed-origins`, 기본 `http://localhost:3000`).
+> (`lift.cors.allowed-origins`, 기본 `http://localhost:3000`).
 
 ## 화면 흐름
 
