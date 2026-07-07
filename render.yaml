@@ -23,7 +23,7 @@ services:
       - key: LIFT_CORS_ALLOWED_ORIGINS
         value: https://life-shift.netlify.app
       - key: LIFT_BASE_URL
-        value: https://lift-api.onrender.com
+        value: https://lift-api-c2z6.onrender.com
       - key: LIFT_FRONTEND_BASE_URL
         value: https://life-shift.netlify.app
       - key: OAUTH_MOCK_ENABLED
