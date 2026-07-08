@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,8 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -34,6 +37,16 @@ public class OpenAiResponsesClient {
     private final RestClient.Builder restClientBuilder;
     private final OpenAiProperties properties;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    // gpt-5.5 같은 추론 모델은 응답 생성에 수십 초가 걸릴 수 있어, 기본 읽기 타임아웃으로는
+    // 간헐적으로 "Read timed out"이 나며 규칙 폴백으로 빠진다. 넉넉한 타임아웃을 명시한다.
+    private final ClientHttpRequestFactory requestFactory = createRequestFactory();
+
+    private static ClientHttpRequestFactory createRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(15));
+        factory.setReadTimeout(Duration.ofSeconds(90));
+        return factory;
+    }
 
     /** OpenAI 연동이 켜져 있고 API 키가 준비됐는지 여부. */
     public boolean isEnabled() {
@@ -59,7 +72,7 @@ public class OpenAiResponsesClient {
             // Spring Boot 4 + Jackson2/3 혼재 환경에서는 응답 미디어 타입이 octet-stream으로
             // 잡혀 메시지 컨버터 선택이 실패한다(Map/String 모두). 그래서 exchange로 원시 응답
             // 스트림을 직접 읽어, 컨버터에 의존하지 않고 우리 ObjectMapper로 파싱한다.
-            String rawBody = restClientBuilder.build()
+            String rawBody = restClientBuilder.requestFactory(requestFactory).build()
                     .post()
                     .uri(properties.getBaseUrl().replaceAll("/+$", "") + "/responses")
                     .contentType(MediaType.APPLICATION_JSON)
