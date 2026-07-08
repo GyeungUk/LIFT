@@ -54,3 +54,11 @@ frontend/out/
 frontend/build/
 frontend/.env*.local
 frontend/*.tsbuildinfo
+.next/
+
+### Python/local generated files ###
+__pycache__/
+*.pyc
+
+### Non-LIFT local sandbox ###
+6.PFM/
