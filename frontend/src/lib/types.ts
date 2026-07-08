@@ -37,6 +37,7 @@ export type PublicBenefitPriorityGroup =
   | "LOCAL"
   | "NEEDS_INFO"
   | "LOW";
+export type PublicBenefitSourceType = "DB" | "GOV24_API";
 export type ChatSenderType = "USER" | "AI";
 export type ProcedureType =
   | "UNEMPLOYMENT_BENEFIT"
@@ -246,6 +247,7 @@ export interface PublicBenefit {
   matchedKeyword: string;
   reason: string;
   sourceLabel: string;
+  sourceType: PublicBenefitSourceType;
   fitLevel: PublicBenefitFitLevel;
   priorityGroup: PublicBenefitPriorityGroup;
   supportTarget: string | null;
@@ -276,6 +278,13 @@ export interface ReportDetail {
   benefitSummary: BenefitSummary;
   items: ReportItem[];
   publicBenefits: PublicBenefit[];
+  pendingBenefits: PublicBenefit[];
+  requiredForMatching: string[];
+}
+
+export interface AssessmentPatchRequest {
+  age?: number | null;
+  tenureYears?: number | null;
 }
 
 export interface PaymentResponse {
