@@ -5,9 +5,11 @@ import com.lift.domain.lifetransition.enumtype.PublicBenefitFitLevel;
 import com.lift.domain.lifetransition.enumtype.PublicBenefitPriorityGroup;
 import com.lift.domain.lifetransition.model.LifeAssessment;
 import com.lift.domain.lifetransition.model.LifeReport;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -18,6 +20,8 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -36,9 +40,22 @@ public class PublicBenefitRecommendationService {
 
     private static final int AI_CANDIDATE_LIMIT = 15;
 
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
+
     private final RestClient.Builder restClientBuilder;
     private final OpenAiProperties properties;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    // 추론 모델(gpt-5.5)은 응답이 수십 초 걸릴 수 있어, 기본 타임아웃으로는 간헐적으로 실패해
+    // heuristic 폴백(aiSummary 없음)으로 빠진다. 넉넉한 타임아웃을 명시한다.
+    private final ClientHttpRequestFactory requestFactory = createRequestFactory();
+
+    private static ClientHttpRequestFactory createRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(15));
+        factory.setReadTimeout(Duration.ofSeconds(90));
+        return factory;
+    }
 
     public List<PublicBenefitResDTO> recommend(LifeReport report, List<PublicBenefitResDTO> candidates) {
         List<PublicBenefitResDTO> fallback = heuristic(candidates);
@@ -54,7 +71,7 @@ public class PublicBenefitRecommendationService {
                 return fallback;
             }
             return applyRecommendations(fallback, recommendations);
-        } catch (RestClientException | JsonProcessingException | IllegalArgumentException e) {
+        } catch (RestClientException | IOException | IllegalArgumentException e) {
             log.warn("OpenAI public benefit ranking failed. Falling back to heuristic ranking.", e);
             return fallback;
         }
@@ -69,8 +86,8 @@ public class PublicBenefitRecommendationService {
     private List<AiRecommendation> callOpenAi(
             LifeReport report,
             List<PublicBenefitResDTO> candidates
-    ) throws JsonProcessingException {
-        RestClient restClient = restClientBuilder.build();
+    ) throws IOException {
+        RestClient restClient = restClientBuilder.requestFactory(requestFactory).build();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", properties.getModel());
         payload.put("reasoning", Map.of("effort", "low"));
@@ -94,15 +111,28 @@ public class PublicBenefitRecommendationService {
         ));
         payload.put("text", Map.of("format", responseFormat()));
 
-        Map<String, Object> response = restClient.post()
+        // Spring Boot 4 + Jackson2/3 혼재 환경에서 응답이 octet-stream으로 잡혀 컨버터 선택이
+        // 실패할 수 있어, exchange로 원시 응답을 직접 읽어 ObjectMapper로 파싱한다.
+        String rawBody = restClient.post()
                 .uri(properties.getBaseUrl().replaceAll("/+$", "") + "/responses")
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + properties.getApiKey())
                 .body(payload)
-                .retrieve()
-                .body(new org.springframework.core.ParameterizedTypeReference<>() {
+                .exchange((httpRequest, httpResponse) -> {
+                    String body = new String(httpResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    if (httpResponse.getStatusCode().isError()) {
+                        log.warn("OpenAI 공공혜택 랭킹 오류 응답 {}: {}", httpResponse.getStatusCode(),
+                                body.length() > 500 ? body.substring(0, 500) : body);
+                        return null;
+                    }
+                    return body;
                 });
 
+        if (!StringUtils.hasText(rawBody)) {
+            return List.of();
+        }
+        Map<String, Object> response = objectMapper.readValue(rawBody, MAP_TYPE);
         String text = extractText(response);
         if (!StringUtils.hasText(text)) {
             return List.of();

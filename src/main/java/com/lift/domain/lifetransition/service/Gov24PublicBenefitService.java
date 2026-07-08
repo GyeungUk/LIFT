@@ -256,7 +256,9 @@ public class Gov24PublicBenefitService {
                 keyword,
                 reason,
                 SOURCE_LABEL,
-                PublicBenefitSourceType.GOV24_API,
+                // 런타임 후보는 전부 gov24_benefit_cache(DB)에서 읽어 온다(fetchCachedRows).
+                // 라이브 정부24 API를 직접 호출하지 않으므로 출처는 DB다.
+                PublicBenefitSourceType.DB,
                 fitLevel,
                 priorityGroup,
                 blankToNull(supportTarget),
