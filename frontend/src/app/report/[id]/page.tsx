@@ -637,7 +637,13 @@ function ReportInner({ reportId }: { reportId: number }) {
         // 공개(permitAll) 엔드포인트라 데모(비로그인)에서도 동일하게 동작하며, 조회 실패는 리포트 표시를 막지 않는다.
         try {
           const region = readAssessmentRegion();
-          const notices = await api.listLocalNotices(region.sido, region.sigungu);
+          let notices = await api.listLocalNotices(region.sido, region.sigungu);
+          // 팀원 Supabase는 시/도 안에서도 일부 시군구만 채워져 있어(예: 서울 25개 구 중 일부는 0건),
+          // 사용자 구에 확정 공고가 아직 없으면 지역 공고가 통째로 사라진다. 이 경우 같은 시/도 단위로
+          // 넓혀 다시 붙여(주석대로 "사용자 시/도에 해당하는 것") 인접 지역 공고라도 노출한다.
+          if (!notices.length && region.sido && region.sigungu) {
+            notices = await api.listLocalNotices(region.sido, null);
+          }
           if (notices.length) {
             data = {
               ...data,
