@@ -105,13 +105,36 @@ a {
   color: #ffffff;
 }
 
+.topbar {
+  min-width: 0;
+}
+
+.topbar .brand {
+  flex: 0 0 auto;
+}
+
 .top-actions {
   margin-left: auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
   justify-content: flex-end;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.top-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.top-actions .top-link,
+.top-actions .link-btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .top-link {
@@ -771,6 +794,36 @@ p.page-sub {
   background: #fff;
   border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
+}
+
+/* AI 버블은 마크다운을 블록 요소로 렌더한다. pre-wrap이 요소 사이 공백을 넣지 않도록 normal로 둔다. */
+.bubble.ai {
+  white-space: normal;
+}
+
+.bubble.ai .md-p {
+  margin: 0;
+}
+
+.bubble.ai .md-p + .md-p,
+.bubble.ai .md-p + .md-list,
+.bubble.ai .md-list + .md-p {
+  margin-top: 8px;
+}
+
+.bubble.ai .md-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.bubble.ai .md-list li {
+  margin: 2px 0;
+}
+
+.bubble.ai a {
+  color: var(--primary);
+  text-decoration: underline;
+  word-break: break-all;
 }
 
 .chat-input-row {
@@ -3097,16 +3150,25 @@ p.page-sub {
 
   .app-shell.wide .topbar {
     top: 8px;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .topbar .brand {
+    min-width: 52px;
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 15px;
   }
 
   .top-actions {
-    gap: 6px;
+    gap: 3px;
   }
 
   .top-link,
   .app-shell.wide .link-btn {
-    padding: 7px 9px;
-    font-size: 13px;
+    padding: 6px 6px;
+    font-size: 12px;
   }
 
   .page-head {

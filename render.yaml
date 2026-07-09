@@ -45,6 +45,9 @@ services:
       - key: TOSS_PAYMENTS_ENABLED
         value: false
       - key: OPENAI_ENABLED
-        value: false
+        value: true
+      # 실제 키는 커밋하지 않는다. Render 대시보드 > Environment에 직접 등록(sync:false).
+      - key: OPENAI_API_KEY
+        sync: false
       - key: OPENAI_MODEL
         value: gpt-5.4-mini

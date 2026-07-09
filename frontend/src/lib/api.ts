@@ -232,12 +232,14 @@ export const api = {
     );
   },
 
-  // 커뮤니티는 데모 로그인도 공유 게시판(PostgreSQL)에 저장되도록 항상 백엔드를 사용한다.
-  // 데모 세션은 인증 헤더 없이 요청하고, 백엔드가 공유 데모 계정으로 처리한다.
+  // 커뮤니티: 실제 로그인 사용자는 공유 게시판(백엔드/PostgreSQL)을 쓰고, 데모 세션은
+  // 백엔드 없이도 글쓰기·삭제·댓글이 동작하도록 브라우저 로컬 데모 게시판을 사용한다.
+  // (데모에서 백엔드가 꺼져 있으면 삭제 등이 실패해 "동작이 이상"해 보이던 문제를 없앤다.)
   getCommunityPosts(
     category?: CommunityCategory | "ALL",
     mode: "latest" | "popular" = "latest",
   ): Promise<CommunityPostSummary[]> {
+    if (isDemoSession()) return demoApi.getCommunityPosts(category, mode);
     const params = new URLSearchParams({ size: "50" });
     if (category && category !== "ALL") params.set("category", category);
     const path =
@@ -248,6 +250,7 @@ export const api = {
   createCommunityPost(
     payload: CommunityPostCreateRequest,
   ): Promise<CommunityPostDetail> {
+    if (isDemoSession()) return demoApi.createCommunityPost(payload);
     return request<CommunityPostDetail>("/api/community/posts", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -255,22 +258,26 @@ export const api = {
   },
 
   getCommunityPost(postId: number): Promise<CommunityPostDetail> {
+    if (isDemoSession()) return demoApi.getCommunityPost(postId);
     return request<CommunityPostDetail>(`/api/community/posts/${postId}`);
   },
 
   deleteCommunityPost(postId: number): Promise<boolean> {
+    if (isDemoSession()) return demoApi.deleteCommunityPost(postId);
     return request<boolean>(`/api/community/posts/${postId}`, {
       method: "DELETE",
     });
   },
 
   likeCommunityPost(postId: number): Promise<CommunityLikeResponse> {
+    if (isDemoSession()) return demoApi.likeCommunityPost(postId);
     return request<CommunityLikeResponse>(`/api/community/posts/${postId}/likes`, {
       method: "POST",
     });
   },
 
   unlikeCommunityPost(postId: number): Promise<CommunityLikeResponse> {
+    if (isDemoSession()) return demoApi.unlikeCommunityPost(postId);
     return request<CommunityLikeResponse>(`/api/community/posts/${postId}/likes`, {
       method: "DELETE",
     });
@@ -280,6 +287,7 @@ export const api = {
     postId: number,
     payload: CommunityCommentCreateRequest,
   ): Promise<CommunityComment> {
+    if (isDemoSession()) return demoApi.createCommunityComment(postId, payload);
     return request<CommunityComment>(`/api/community/posts/${postId}/comments`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -287,6 +295,7 @@ export const api = {
   },
 
   deleteCommunityComment(postId: number, commentId: number): Promise<boolean> {
+    if (isDemoSession()) return demoApi.deleteCommunityComment(postId, commentId);
     return request<boolean>(
       `/api/community/posts/${postId}/comments/${commentId}`,
       { method: "DELETE" },

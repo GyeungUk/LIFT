@@ -10,7 +10,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ReportPlanType {
 
-    BASIC(6_900, 0, true, "기본 리포트"),
+    // pdfAvailable: PDF 저장 제공 여부. aiQuestionLimit: "하루" AI 질문 허용 횟수.
+    // 기본(6,900원)은 리포트 열람만, 확장(13,900원)은 PDF 저장 + 하루 10회 AI 질문을 제공한다.
+    BASIC(6_900, 0, false, "기본 리포트"),
     PLUS(13_900, 10, true, "확장 리포트");
 
     private final int price;

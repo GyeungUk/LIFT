@@ -23,7 +23,7 @@ public record ReportChatMessageCreateResDTO(
                 ReportChatMessageResDTO.from(userMessage),
                 ReportChatMessageResDTO.from(aiMessage),
                 report.getAiQuestionLimit(),
-                report.getAiQuestionUsedCount(),
+                report.getAiQuestionUsedToday(),
                 report.getAiQuestionRemaining()
         );
     }

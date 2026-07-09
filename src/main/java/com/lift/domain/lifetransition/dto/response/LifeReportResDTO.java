@@ -58,7 +58,7 @@ public record LifeReportResDTO(
                 report.canUseAiChat(),
                 report.canUsePdfEstimate(),
                 report.getAiQuestionLimit(),
-                report.getAiQuestionUsedCount(),
+                report.getAiQuestionUsedToday(),
                 report.getAiQuestionRemaining(),
                 report.getCreatedAt(),
                 estimation.summary(),

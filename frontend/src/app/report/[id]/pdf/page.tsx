@@ -59,12 +59,43 @@ function ReportPdfInner({ reportId }: { reportId: number }) {
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [inAppBrowser, setInAppBrowser] = useState<InAppBrowser | null>(null);
+  // 미리 만들어 둔 PDF Blob. 사용자가 "저장"을 누르는 즉시(제스처 안에서) 공유/저장하려면
+  // Blob이 이미 준비돼 있어야 iOS 공유 시트가 안정적으로 뜬다.
+  const pdfBlobRef = useRef<Blob | null>(null);
   const monthlyAverageWage = parseWage(searchParams.get("monthlyAverageWage"));
 
   useEffect(() => {
     setInAppBrowser(detectInAppBrowser());
   }, []);
+
+  // 리포트가 준비되면 백그라운드에서 PDF Blob을 미리 만들어 둔다.
+  useEffect(() => {
+    if (!report || inAppBrowser) return;
+    let cancelled = false;
+    pdfBlobRef.current = null;
+    setPreparing(true);
+    const frame = window.requestAnimationFrame(async () => {
+      const target = exportRef.current?.querySelector<HTMLElement>(".pdf-page");
+      if (!target) {
+        if (!cancelled) setPreparing(false);
+        return;
+      }
+      try {
+        const blob = await createPdfBlobFromElement(target);
+        if (!cancelled) pdfBlobRef.current = blob;
+      } catch {
+        // 사전 생성 실패는 조용히 무시하고, 저장 시 즉석 생성으로 재시도한다.
+      } finally {
+        if (!cancelled) setPreparing(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [report, inAppBrowser]);
 
   useEffect(() => {
     let mounted = true;
@@ -94,22 +125,30 @@ function ReportPdfInner({ reportId }: { reportId: number }) {
       return;
     }
 
-    const target = exportRef.current?.querySelector<HTMLElement>(".pdf-page");
-    if (!target || !report) {
+    if (!report) {
       setError("PDF로 저장할 리포트를 찾지 못했어요. 다시 시도해 주세요.");
       return;
     }
 
+    const filename = `${safePdfFilename(`LIFT_${report.summaryTitle}`, "LIFT_report")}.pdf`;
+    const ready = pdfBlobRef.current;
+
     setSaving(true);
     setError(null);
-    const fallbackWindow = openPdfFallbackWindow();
+    // Blob이 이미 준비돼 있으면 사전 탭 없이 클릭 제스처 안에서 바로 공유/저장한다.
+    // 아직 준비 전이면 비동기 생성 동안 제스처가 만료되므로 사전 탭을 열어 둔다.
+    const fallbackWindow = ready ? null : openPdfFallbackWindow();
     try {
-      const blob = await createPdfBlobFromElement(target);
-      await savePdfBlob(
-        blob,
-        `${safePdfFilename(`LIFT_${report.summaryTitle}`, "LIFT_report")}.pdf`,
-        fallbackWindow,
-      );
+      let blob = ready;
+      if (!blob) {
+        const target = exportRef.current?.querySelector<HTMLElement>(".pdf-page");
+        if (!target) {
+          throw new Error("PDF export target missing.");
+        }
+        blob = await createPdfBlobFromElement(target);
+        pdfBlobRef.current = blob;
+      }
+      await savePdfBlob(blob, filename, fallbackWindow);
     } catch {
       fallbackWindow?.close();
       setError("PDF 파일 저장에 실패했어요. Safari나 Chrome에서 다시 시도해 주세요.");
@@ -146,8 +185,19 @@ function ReportPdfInner({ reportId }: { reportId: number }) {
         <button type="button" className="btn secondary" onClick={() => router.back()}>
           이전으로
         </button>
-        <button type="button" className="btn" disabled={saving} onClick={handleSavePdf}>
-          {saving ? "PDF 준비 중…" : inAppBrowser ? "브라우저로 열어 PDF 저장" : "PDF 파일 저장"}
+        <button
+          type="button"
+          className="btn"
+          disabled={saving || (preparing && !inAppBrowser)}
+          onClick={handleSavePdf}
+        >
+          {saving
+            ? "PDF 저장 중…"
+            : inAppBrowser
+              ? "브라우저로 열어 PDF 저장"
+              : preparing
+                ? "PDF 준비 중…"
+                : "PDF 파일 저장"}
         </button>
       </div>
       <div className="pdf-preview-shell">

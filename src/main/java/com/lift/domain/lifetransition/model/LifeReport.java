@@ -17,6 +17,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +67,10 @@ public class LifeReport extends BaseCreatedEntity {
 
     @Column(name = "ai_question_used_count", nullable = false)
     private int aiQuestionUsedCount;
+
+    // AI 질문 횟수는 "하루 단위"로 초기화된다. 이 값이 오늘이 아니면 사용량을 0으로 본다.
+    @Column(name = "ai_question_count_date")
+    private LocalDate aiQuestionCountDate;
 
     @Column(name = "payment_provider", length = 30)
     private String paymentProvider;
@@ -132,7 +137,9 @@ public class LifeReport extends BaseCreatedEntity {
         this.paymentPlan = resolvedPlan;
         this.paymentAmount = amount == null ? resolvedPlan.getPrice() : amount;
         this.aiQuestionLimit = resolvedPlan.getAiQuestionLimit();
-        this.aiQuestionUsedCount = Math.min(aiQuestionUsedCount, aiQuestionLimit);
+        // 결제 시점부터 "하루 10회" 카운트를 새로 시작한다.
+        this.aiQuestionUsedCount = 0;
+        this.aiQuestionCountDate = null;
         this.paymentProvider = provider;
         this.paymentOrderId = orderId;
         this.paymentKey = paymentKey;
@@ -168,15 +175,29 @@ public class LifeReport extends BaseCreatedEntity {
         return isPaid() && plan != null && plan.isPdfAvailable();
     }
 
+    /** 오늘 사용한 AI 질문 수. 마지막 사용일이 오늘이 아니면 0으로 본다(하루 단위 초기화). */
+    public int getAiQuestionUsedToday() {
+        if (aiQuestionCountDate == null || !aiQuestionCountDate.isEqual(LocalDate.now())) {
+            return 0;
+        }
+        return aiQuestionUsedCount;
+    }
+
     public boolean isAiQuestionLimitReached() {
-        return aiQuestionUsedCount >= aiQuestionLimit;
+        return getAiQuestionUsedToday() >= aiQuestionLimit;
     }
 
     public int getAiQuestionRemaining() {
-        return Math.max(0, aiQuestionLimit - aiQuestionUsedCount);
+        return Math.max(0, aiQuestionLimit - getAiQuestionUsedToday());
     }
 
     public void increaseAiQuestionUsedCount() {
+        LocalDate today = LocalDate.now();
+        // 날짜가 바뀌었으면 오늘치로 카운트를 초기화한 뒤 1 증가시킨다.
+        if (aiQuestionCountDate == null || !aiQuestionCountDate.isEqual(today)) {
+            this.aiQuestionCountDate = today;
+            this.aiQuestionUsedCount = 0;
+        }
         this.aiQuestionUsedCount++;
     }
 

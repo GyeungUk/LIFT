@@ -103,7 +103,7 @@ class LifeAssessmentControllerTest {
     }
 
     @Test
-    void 기본리포트는_상세와_PDF가_열리고_AI는_확장리포트에서만_가능하다() throws Exception {
+    void 기본리포트는_상세만_열리고_PDF와_AI는_확장리포트에서만_가능하다() throws Exception {
         long reportId = analyzeAndGetReportId(createRetirementAssessment());
 
         mockMvc.perform(authorized(post("/api/life/reports/" + reportId + "/payments/mock-complete"))
@@ -116,7 +116,7 @@ class LifeAssessmentControllerTest {
                 .andExpect(jsonPath("$.result.paymentPlan").value("BASIC"))
                 .andExpect(jsonPath("$.result.paymentAmount").value(6_900))
                 .andExpect(jsonPath("$.result.aiChatAvailable").value(false))
-                .andExpect(jsonPath("$.result.pdfAvailable").value(true));
+                .andExpect(jsonPath("$.result.pdfAvailable").value(false));
 
         mockMvc.perform(authorized(get("/api/life/reports/" + reportId)))
                 .andExpect(status().isOk())
@@ -124,15 +124,16 @@ class LifeAssessmentControllerTest {
                 .andExpect(jsonPath("$.result.paymentPlan").value("BASIC"))
                 .andExpect(jsonPath("$.result.aiQuestionLimit").value(0))
                 .andExpect(jsonPath("$.result.aiChatAvailable").value(false))
-                .andExpect(jsonPath("$.result.pdfAvailable").value(true));
+                .andExpect(jsonPath("$.result.pdfAvailable").value(false));
 
-        // PDF 저장은 기본 플랜부터 허용된다.
+        // PDF 저장은 확장 리포트 전용이다.
         mockMvc.perform(authorized(post("/api/life/reports/" + reportId + "/pdf-estimate"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LIFE403_4"));
 
-        // AI 질문은 여전히 확장 리포트 전용이다.
+        // AI 질문도 확장 리포트 전용이다.
         mockMvc.perform(authorized(post("/api/life/reports/" + reportId + "/chat/messages"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("content", "실업급여는 언제 신청하나요?"))))

@@ -50,7 +50,16 @@ function planFromAmount(amount?: number | null): ReportPlanType {
 }
 
 function planAiLimit(plan: ReportPlanType): number {
+  // PLUS는 AI 질문을 "하루 10회"까지 이용할 수 있다(전체 누적이 아니라 매일 초기화).
   return plan === "PLUS" ? 10 : 0;
+}
+
+/** 오늘 사용한 AI 질문 수. 사용자 메시지만 세고, 자정을 지나면 자동으로 0으로 초기화된다. */
+function chatQuestionsUsedToday(messages: ChatMessage[]): number {
+  const today = new Date().toDateString();
+  return messages.filter(
+    (m) => m.senderType === "USER" && new Date(m.createdAt).toDateString() === today,
+  ).length;
 }
 
 /**
@@ -763,6 +772,112 @@ function saveReport(report: ReportDetail): ReportDetail {
   return writeJson(REPORT_KEY, normalizeReport(report));
 }
 
+/**
+ * 백엔드/OpenAI 없이도 데모 챗봇이 "실제로 답하도록" 하는 로컬 답변 생성기.
+ * 저장된 리포트(절차 항목·공공혜택)를 근거로 질문 키워드에 가장 가까운 내용을 요약해 답한다.
+ * 백엔드(/api/ai/report-chat)가 살아 있으면 그 답을 우선 쓰고, 실패하면 이 함수 결과를 사용한다.
+ */
+function localReportAnswer(report: ReportDetail, question: string): string {
+  const tokens = question
+    .replace(/[?!.,]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
+  const has = (kw: string) => question.includes(kw);
+  // 한국어는 조사가 붙어 토큰이 어긋나기 쉽다. (1) 필드 텍스트가 토큰을 포함하는지,
+  // (2) 핵심 명사(제목·절차명 등)가 질문에 통째로 등장하는지 양방향으로 점수를 매긴다.
+  const scoreText = (text: string) =>
+    tokens.reduce((n, tok) => n + (text.includes(tok) ? 1 : 0), 0);
+  const scoreKeywords = (keywords: Array<string | null | undefined>) =>
+    keywords.reduce<number>((n, kw) => n + (kw && kw.length >= 2 && question.includes(kw) ? 3 : 0), 0);
+
+  const items = report.items ?? [];
+  const benefits = [...(report.publicBenefits ?? []), ...(report.pendingBenefits ?? [])];
+
+  const bestItem = items
+    .map((it) => ({
+      it,
+      s:
+        scoreKeywords([it.procedureName, it.title]) +
+        scoreText(
+          [
+            it.title,
+            it.procedureName,
+            it.reason,
+            it.deadlineText ?? "",
+            (it.requiredDocuments ?? []).map((d) => d.documentName).join(" "),
+          ].join(" "),
+        ),
+    }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s)[0]?.it;
+
+  const bestBenefit = benefits
+    .map((b) => ({
+      b,
+      s:
+        scoreKeywords([b.title, b.category, b.provider]) +
+        scoreText(
+          [b.title, b.summary ?? "", b.category ?? "", b.provider ?? "", b.supportContent ?? "", b.reason].join(" "),
+        ),
+    }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s)[0]?.b;
+
+  const parts: string[] = [];
+
+  if (bestItem) {
+    let s = `'${bestItem.title}' 관련해서 말씀드리면, ${bestItem.reason}`;
+    if (bestItem.deadlineText) s += ` 신청 기한은 ${bestItem.deadlineText}이니 늦지 않게 챙기세요.`;
+    const docs = (bestItem.requiredDocuments ?? []).map((d) => d.documentName).filter(Boolean);
+    if (docs.length) s += ` 필요 서류는 ${docs.join(", ")} 등입니다.`;
+    if (bestItem.estimate?.amountLabel) s += ` 예상 금액은 ${bestItem.estimate.amountLabel} 수준이에요.`;
+    if (bestItem.officialUrl) s += ` 자세한 신청 방법은 공식 안내(${bestItem.officialUrl})에서 확인할 수 있어요.`;
+    parts.push(s);
+  }
+
+  if (bestBenefit && bestBenefit.title !== bestItem?.title) {
+    let s = `공공혜택으로는 '${bestBenefit.title}'`;
+    if (bestBenefit.provider) s += `(${bestBenefit.provider})`;
+    s += "이(가) 관련 있어요.";
+    if (bestBenefit.supportContent) s += ` 지원 내용은 ${bestBenefit.supportContent}입니다.`;
+    if (bestBenefit.applicationDeadline) s += ` 신청 기한은 ${bestBenefit.applicationDeadline}이에요.`;
+    if (bestBenefit.applicationMethod) s += ` 신청 방법: ${bestBenefit.applicationMethod}.`;
+    if (bestBenefit.applicationUrl) s += ` (${bestBenefit.applicationUrl})`;
+    parts.push(s);
+  }
+
+  if (parts.length === 0 && (has("언제") || has("기한") || has("마감") || has("며칠"))) {
+    const withDeadline = items.filter((it) => it.deadlineText);
+    if (withDeadline.length) {
+      parts.push(
+        "기한이 있는 항목만 모으면 다음과 같아요:\n" +
+          withDeadline.map((it) => `· ${it.title} — ${it.deadlineText}`).join("\n"),
+      );
+    }
+  }
+
+  if (parts.length === 0) {
+    const top3 = items
+      .slice(0, 3)
+      .map((it, i) => `${i + 1}. ${it.title}${it.deadlineText ? ` — 기한 ${it.deadlineText}` : ""}`)
+      .join("\n");
+    const amount =
+      report.expectedAmountRangeLabel ??
+      (report.benefitSummary?.estimated && report.benefitSummary.totalReceiveAmount > 0
+        ? `약 ${report.benefitSummary.totalReceiveAmount.toLocaleString()}원`
+        : null);
+    parts.push(
+      (top3
+        ? `질문에 딱 맞는 항목을 특정하지 못했지만, 리포트 기준으로 지금 먼저 챙길 항목은 다음과 같아요:\n${top3}`
+        : "아직 리포트에 정리된 절차가 없어요. 로드맵을 먼저 생성하면 항목 기반으로 자세히 답해드릴게요.") +
+        (amount ? `\n예상 수령·절감액은 ${amount} 수준입니다.` : "") +
+        "\n\n절차 이름(예: 실업급여, 건강보험 전환, 국민연금)을 넣어 다시 물어보시면 더 구체적으로 알려드릴게요.",
+    );
+  }
+
+  return parts.join("\n\n");
+}
+
 // PDF 저장 시 월급으로 예상액을 재계산하려면 원본 진단 입력이 필요하므로 함께 보관한다.
 function savedAssessment(): AssessmentCreateRequest | null {
   return readJson<AssessmentCreateRequest | null>(ASSESSMENT_KEY, null);
@@ -1287,8 +1402,8 @@ export const demoApi = {
       paymentPlan: plan,
       paymentAmount: amount,
       aiChatAvailable: plan === "PLUS",
-      // PDF 저장은 기본(6,900원) 플랜부터 제공한다. AI 질문만 확장 플랜 전용.
-      pdfAvailable: true,
+      // PDF 저장·AI 질문 모두 확장(13,900원) 플랜 전용이다. 기본(6,900원)은 리포트 열람만 제공한다.
+      pdfAvailable: plan === "PLUS",
       aiQuestionLimit: aiLimit,
       aiQuestionUsedCount: 0,
       aiQuestionRemaining: aiLimit,
@@ -1300,7 +1415,7 @@ export const demoApi = {
       paymentPlan: plan,
       paymentAmount: amount,
       aiChatAvailable: plan === "PLUS",
-      pdfAvailable: true,
+      pdfAvailable: plan === "PLUS",
     });
   },
 
@@ -1315,13 +1430,20 @@ export const demoApi = {
   },
 
   getReport(_reportId: number): Promise<ReportDetail> {
-    return Promise.resolve(saveReport(refreshDemoBenefitRecommendations(requireReport())));
+    const base = saveReport(refreshDemoBenefitRecommendations(requireReport()));
+    // AI 질문은 "하루 10회"라서, 리포트 화면의 남은 횟수도 오늘 사용량 기준으로 표시한다.
+    const used = chatQuestionsUsedToday(readJson<ChatMessage[]>(CHAT_KEY, []));
+    return Promise.resolve({
+      ...base,
+      aiQuestionUsedCount: Math.min(used, base.aiQuestionLimit),
+      aiQuestionRemaining: Math.max(0, base.aiQuestionLimit - used),
+    });
   },
 
   getPdfReport(_reportId: number, payload: ReportPdfEstimateRequest): Promise<ReportDetail> {
     const base = saveReport(refreshDemoBenefitRecommendations(requireReport()));
     if (!base.pdfAvailable) {
-      throw new Error("리포트 결제 후 이용할 수 있습니다.");
+      throw new Error("PDF 저장은 확장 리포트 결제 후 이용할 수 있습니다.");
     }
     const assessment = savedAssessment();
     // 진단 입력이 없으면(구버전 리포트 등) 저장된 리포트 그대로 반환한다.
@@ -1379,7 +1501,7 @@ export const demoApi = {
     }
     const messages = readJson<ChatMessage[]>(CHAT_KEY, []);
     const limit = report.aiQuestionLimit;
-    const used = Math.floor(messages.length / 2);
+    const used = chatQuestionsUsedToday(messages);
     return Promise.resolve({
       messages,
       aiQuestionLimit: limit,
@@ -1399,9 +1521,9 @@ export const demoApi = {
       throw new Error("확장 리포트 결제 후 이용할 수 있습니다.");
     }
     const messages = readJson<ChatMessage[]>(CHAT_KEY, []);
-    const used = Math.floor(messages.length / 2) + 1;
+    const used = chatQuestionsUsedToday(messages) + 1;
     if (used > report.aiQuestionLimit) {
-      throw new Error("AI 질문 가능 횟수를 모두 사용했습니다.");
+      throw new Error("오늘 사용할 수 있는 AI 질문 횟수를 모두 사용했습니다. 내일 다시 이용해 주세요.");
     }
     const userMessage: ChatMessage = {
       messageId: Date.now(),
@@ -1410,8 +1532,8 @@ export const demoApi = {
       createdAt: now(),
     };
 
-    let answer =
-      "지금은 답변을 불러오지 못했어요. 잠시 후 다시 시도하거나, 리포트의 우선순위 높은 항목부터 확인해 주세요.";
+    // 백엔드가 없거나 실패해도 답이 나오도록, 리포트 기반 로컬 답변을 기본값으로 준비한다.
+    let answer = localReportAnswer(report, content);
     try {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";

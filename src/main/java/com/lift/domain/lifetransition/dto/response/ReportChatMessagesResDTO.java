@@ -20,7 +20,7 @@ public record ReportChatMessagesResDTO(
                         .map(ReportChatMessageResDTO::from)
                         .toList(),
                 report.getAiQuestionLimit(),
-                report.getAiQuestionUsedCount(),
+                report.getAiQuestionUsedToday(),
                 report.getAiQuestionRemaining()
         );
     }

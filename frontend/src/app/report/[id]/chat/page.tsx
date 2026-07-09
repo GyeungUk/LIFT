@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AuthGuard } from "@/components/AuthGuard";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { api, ApiError } from "@/lib/api";
 import type { ChatMessage } from "@/lib/types";
 
@@ -79,7 +80,7 @@ function ChatInner({ reportId }: { reportId: number }) {
       setInput(content);
       if (e instanceof ApiError && e.code === "LIFE403_3") {
         setUsed(limit);
-        setError("AI 질문 가능 횟수(10회)를 모두 사용했어요.");
+        setError("오늘 사용할 수 있는 AI 질문(하루 10회)을 모두 사용했어요. 내일 다시 이용해 주세요.");
       } else {
         setError(e instanceof ApiError ? e.message : "메시지 전송에 실패했어요.");
       }
@@ -109,7 +110,7 @@ function ChatInner({ reportId }: { reportId: number }) {
         리포트 기반 AI 질문
       </h1>
       <p className="quota">
-        남은 질문 {remaining}회 / 총 {limit}회
+        오늘 남은 질문 {remaining}회 / 하루 {limit}회
       </p>
 
       {error && <div className="error-box">{error}</div>}
@@ -128,7 +129,7 @@ function ChatInner({ reportId }: { reportId: number }) {
             key={m.messageId}
             className={`bubble ${m.senderType === "USER" ? "user" : "ai"}`}
           >
-            {m.content}
+            {m.senderType === "USER" ? m.content : <ChatMarkdown text={m.content} />}
           </div>
         ))}
       </div>

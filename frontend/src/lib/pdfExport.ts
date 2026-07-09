@@ -24,7 +24,10 @@ export function isAppleMobileBrowser(): boolean {
 }
 
 export function openPdfFallbackWindow(): Window | null {
-  if (!isAppleMobileBrowser()) return null;
+  // 모바일에서만 사전 탭을 연다. Blob 생성(비동기) 뒤에는 팝업이 막히므로,
+  // 클릭 제스처가 살아있는 동안 미리 빈 탭을 확보해 두는 용도다.
+  if (typeof navigator === "undefined") return null;
+  if (!isAppleMobileBrowser() && !/Android/i.test(navigator.userAgent)) return null;
 
   const win = window.open("", "_blank");
   if (!win) return null;
@@ -123,6 +126,22 @@ export async function createPdfBlobFromElement(element: HTMLElement): Promise<Bl
   return pdf.output("blob");
 }
 
+function isMobileBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return isAppleMobileBrowser() || /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * PDF Blob을 기기에 저장한다. 플랫폼별로 가장 확실한 경로를 고른다.
+ *
+ * - iOS Safari · Android Chrome: 파일 공유(Web Share)가 가능하면 "공유 시트"를 띄운다.
+ *   여기서 "파일에 저장"(iOS) / "다운로드"(Android)로 실제 저장이 가능하다.
+ *   단, 공유 시트는 사용자 제스처(클릭) 안에서 호출돼야 하므로, 호출부(PDF 페이지)는
+ *   Blob을 미리 만들어 두고 클릭 시 곧바로 이 함수를 부른다.
+ * - 공유가 불가능하거나 실패한 모바일: 미리 열어둔 탭 또는 새 탭에 Blob을 띄워
+ *   기본 PDF 뷰어에서 저장하도록 한다.
+ * - 데스크톱: download 속성 앵커로 즉시 내려받는다.
+ */
 export async function savePdfBlob(
   blob: Blob,
   filename: string,
@@ -131,9 +150,10 @@ export async function savePdfBlob(
   const normalizedFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
   const file = new File([blob], normalizedFilename, { type: "application/pdf" });
   const shareNavigator = navigator as ShareNavigator;
-  const appleMobile = isAppleMobileBrowser();
+  const mobile = isMobileBrowser();
 
-  if (appleMobile && shareNavigator.share && canShareFile(shareNavigator, file)) {
+  // 모바일에서 파일 공유가 지원되면 우선 사용한다(iOS 저장/에어드롭, Android 저장 등).
+  if (mobile && shareNavigator.share && canShareFile(shareNavigator, file)) {
     try {
       await shareNavigator.share({
         files: [file],
@@ -146,17 +166,21 @@ export async function savePdfBlob(
         closeFallbackWindow(fallbackWindow);
         return "cancelled";
       }
+      // 공유가 거부되면(대개 사용자 제스처 만료) 아래 탭 열기/다운로드로 넘어간다.
     }
   }
 
   const url = URL.createObjectURL(blob);
+
+  // iOS 등에서 미리 열어둔 탭이 있으면 그 탭에서 PDF를 연다(뷰어에서 저장 가능).
   if (fallbackWindow && !fallbackWindow.closed) {
     fallbackWindow.location.href = url;
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     return "opened";
   }
 
-  if (appleMobile) {
+  // 공유·다운로드가 모두 애매한 모바일: 새 탭에 PDF를 띄운다.
+  if (mobile) {
     const opened = window.open(url, "_blank");
     if (!opened) {
       window.location.href = url;
@@ -165,6 +189,7 @@ export async function savePdfBlob(
     return "opened";
   }
 
+  // 데스크톱(및 다운로드가 확실한 환경): 앵커 다운로드.
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = normalizedFilename;

@@ -79,10 +79,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
-                .toList());
+                .toList();
+        // '*'가 포함된 항목(예: 로컬 개발용 http://localhost:*)은 패턴으로, 나머지는 정확 매칭으로 등록한다.
+        // allowCredentials(true)와 함께 와일드카드를 쓰려면 allowedOrigins가 아니라 allowedOriginPatterns여야 한다.
+        List<String> exactOrigins = origins.stream().filter(o -> !o.contains("*")).toList();
+        List<String> originPatterns = origins.stream().filter(o -> o.contains("*")).toList();
+        if (!exactOrigins.isEmpty()) {
+            configuration.setAllowedOrigins(exactOrigins);
+        }
+        if (!originPatterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(originPatterns);
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
