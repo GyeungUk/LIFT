@@ -1244,7 +1244,7 @@ function initialCommunity(): CommunityPostDetail[] {
   return [
     {
       postId: 1,
-      category: "UNEMPLOYMENT",
+      category: "JOB_CHANGE",
       title: "이직확인서 처리 여부는 어디서 확인하나요?",
       content:
         "전 직장에서 제출했다고 했는데 고용24에서 아직 안 보여요. 보통 며칠 정도 걸리는지 궁금합니다.",
