@@ -46,6 +46,9 @@ dependencies {
     // Swagger
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:3.0.1'
+
+    // 지자체 게시판 RSS(고시/공고) 파싱
+    implementation 'com.rometools:rome:2.1.0'
 }
 
 tasks.named('test') {

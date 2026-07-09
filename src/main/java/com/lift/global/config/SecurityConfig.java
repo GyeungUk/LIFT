@@ -51,7 +51,11 @@ public class SecurityConfig {
             // 커뮤니티는 데모 로그인도 공유 게시판에 글을 남길 수 있도록 허용한다.
             // 로그인 사용자는 필터가 세팅한 Authentication으로 본인 계정에 귀속되고,
             // 비로그인(데모) 요청은 서비스에서 공유 데모 계정으로 저장된다.
-            "/api/community/**"
+            "/api/community/**",
+            // 지자체 RSS 공고 수집 파이프라인 파일럿 검증용 임시 엔드포인트.
+            // lift.local-notice.sync-enabled=true일 때만 컨트롤러 자체가 존재한다(운영 기본 off).
+            // 별도 관리자 권한 체계가 없어 임시로 permitAll — 운영 노출 시 인증/인가 추가 필요.
+            "/api/internal/local-notices/**"
     };
 
     @Bean

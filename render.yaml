@@ -42,6 +42,8 @@ services:
         value: https://life-shift.netlify.app/login/callback/naver
       - key: GOV24_PUBLIC_SERVICE_ENABLED
         value: false
+      - key: LOCAL_NOTICE_SYNC_ENABLED
+        value: false
       - key: TOSS_PAYMENTS_ENABLED
         value: false
       - key: OPENAI_ENABLED

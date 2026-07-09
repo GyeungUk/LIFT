@@ -136,3 +136,15 @@ UPDATE gov24_benefit_cache SET requires_disabled = true WHERE external_id IN ('1
 UPDATE gov24_benefit_cache SET requires_single_parent = true WHERE external_id IN ('138300000052','310000000119','314000000116','323000000111','569000000365','642000000700');
 UPDATE gov24_benefit_cache SET requires_basic_livelihood = true WHERE external_id IN ('307000000117','309000000135','315000000108','320000000112','321000000110','374000000145','393000000108','508000000681','B11005300003','O00005900002');
 UPDATE gov24_benefit_cache SET requires_near_poverty = true WHERE external_id IN ('303000000107','307000000110','333000000376','SBA000000100');
+
+-- 지자체 RSS 지원사업/장려금 수집(파일럿) 소스 레지스트리. 로컬 개발(H2) 전용 시드이며,
+-- 운영 Postgres/Supabase에는 자동 실행되지 않는다(spring.sql.init.mode=embedded 기본값).
+-- 각 지자체 "고시/공고" 게시판 RSS를 등록해 둔다(공공데이터포털 등록 메타데이터로 확인된 주소).
+INSERT INTO local_notice_source (region_sido, region_sigungu, org_name, board_name, feed_url, enabled) VALUES
+    ('서울특별시', '용산구', '용산구청', '고시/공고', 'https://www.yongsan.go.kr/portal/bbs/B0000095/rssService.do?menuNo=200233&viewType=CONTBODY', true);
+INSERT INTO local_notice_source (region_sido, region_sigungu, org_name, board_name, feed_url, enabled) VALUES
+    ('서울특별시', '노원구', '노원구청', '공고/고시', 'https://www.nowon.kr/www/user/bbs/ND_selectRssList.do?q_bbsCode=1003&q_clCode=0', true);
+INSERT INTO local_notice_source (region_sido, region_sigungu, org_name, board_name, feed_url, enabled) VALUES
+    ('서울특별시', '광진구', '광진구청', '고시공고', 'https://www.gwangjin.go.kr/portal/bbs/B0000003/rssService.do?viewType=CONTBODY&bbsId=B03', true);
+INSERT INTO local_notice_source (region_sido, region_sigungu, org_name, board_name, feed_url, enabled) VALUES
+    ('경기도', '하남시', '하남시청', '공지사항', 'http://www.hanam.go.kr/rssBbsNtt.do?bbsNo=30', true);
