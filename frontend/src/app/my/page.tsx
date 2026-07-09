@@ -104,14 +104,14 @@ function MyPageInner() {
   const [disabledPerson, setDisabledPerson] = useState(false);
 
   const [ringReady, setRingReady] = useState(false);
-  const [eventType, setEventType] = useState<LifeEventType>("RETIREMENT");
+  const [eventType, setEventType] = useState<LifeEventType | null>(null);
   const [retirementDate, setRetirementDate] = useState("");
   const [resignationReason, setResignationReason] =
-    useState<ResignationReason>("CONTRACT_EXPIRED");
-  const [nextJobStatus, setNextJobStatus] = useState<NextJobStatus>("NOT_CONFIRMED");
+    useState<ResignationReason | null>(null);
+  const [nextJobStatus, setNextJobStatus] = useState<NextJobStatus | null>(null);
   const [nextJobStartDate, setNextJobStartDate] = useState("");
-  const [insuranceMonths, setInsuranceMonths] = useState<number | null>(12);
-  const [incomeStatus, setIncomeStatus] = useState<CurrentIncomeStatus>("NONE");
+  const [insuranceMonths, setInsuranceMonths] = useState<number | null>(null);
+  const [incomeStatus, setIncomeStatus] = useState<CurrentIncomeStatus | null>(null);
   const [age, setAge] = useState("");
   const [tenureYears, setTenureYears] = useState("");
 
@@ -206,6 +206,21 @@ function MyPageInner() {
 
   async function handleCreateRoadmap(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (
+      !eventType ||
+      !resignationReason ||
+      !nextJobStatus ||
+      insuranceMonths === null ||
+      !incomeStatus ||
+      !age
+    ) {
+      setError("필수 항목을 모두 선택해 주세요.");
+      return;
+    }
+    if (!regionSido || !regionSigungu) {
+      setError("거주 지역(시/도와 시/군/구)을 모두 선택해 주세요.");
+      return;
+    }
     setCreating(true);
     setError(null);
     setSavedMessage(null);
@@ -246,6 +261,15 @@ function MyPageInner() {
 
   const provider = profile?.provider?.toUpperCase() ?? "";
   const dateLabel = eventType === "JOB_CHANGE" ? "마지막 근무일" : "퇴직(퇴사)일";
+  const roadmapRequiredCompleted =
+    Boolean(eventType) &&
+    Boolean(resignationReason) &&
+    Boolean(nextJobStatus) &&
+    insuranceMonths !== null &&
+    Boolean(incomeStatus) &&
+    Boolean(age) &&
+    Boolean(regionSido) &&
+    Boolean(regionSigungu);
   const regionLabel =
     regionSido && regionSigungu ? `${regionSido} ${regionSigungu}` : "미입력";
   const householdLabel = optionLabel(HOUSEHOLD_OPTIONS, householdType);
@@ -334,7 +358,7 @@ function MyPageInner() {
             </div>
 
             <div className="field">
-              <label>닉네임</label>
+              <label>닉네임 <span className="label-hint">· 선택</span></label>
               <input
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value.slice(0, 20))}
@@ -343,7 +367,9 @@ function MyPageInner() {
             </div>
 
             <div className="form-block">
-              <label className="form-label">거주 지역</label>
+              <label className="form-label">
+                거주 지역 <span className="wage-badge">필수</span>
+              </label>
               <RegionField
                 sido={regionSido}
                 sigungu={regionSigungu}
@@ -353,7 +379,9 @@ function MyPageInner() {
             </div>
 
             <div className="form-block compact">
-              <label className="form-label">가구 형태</label>
+              <label className="form-label">
+                가구 형태 <span className="label-hint">· 선택</span>
+              </label>
               <OptionSelector
                 options={HOUSEHOLD_OPTIONS}
                 value={householdType}
@@ -365,7 +393,7 @@ function MyPageInner() {
 
             <div className="form-block compact">
               <label className="form-label">
-                가구원 정보 <span className="label-hint">· 복수 선택 가능</span>
+                가구원 정보 <span className="label-hint">· 선택, 복수 선택 가능</span>
               </label>
               <div className="toggle-grid">
                 <TogglePill
@@ -383,7 +411,9 @@ function MyPageInner() {
 
             <div className="two-col">
               <div className="form-block compact income-range-select">
-                <label className="form-label">연소득 범위</label>
+                <label className="form-label">
+                  연소득 범위 <span className="label-hint">· 선택</span>
+                </label>
                 <OptionSelector
                   options={INCOME_RANGE_OPTIONS}
                   value={annualIncomeRange}
@@ -393,7 +423,9 @@ function MyPageInner() {
                 />
               </div>
               <div className="form-block compact">
-                <label className="form-label">재산 범위</label>
+                <label className="form-label">
+                  재산 범위 <span className="label-hint">· 선택</span>
+                </label>
                 <OptionSelector
                   options={ASSET_OPTIONS}
                   value={assetRange}
@@ -405,7 +437,9 @@ function MyPageInner() {
             </div>
 
             <div className="form-block compact">
-              <label className="form-label">주거 형태</label>
+              <label className="form-label">
+                주거 형태 <span className="label-hint">· 선택</span>
+              </label>
               <OptionSelector
                 options={HOUSING_OPTIONS}
                 value={housingType}
@@ -416,7 +450,9 @@ function MyPageInner() {
             </div>
 
             <div className="form-block compact">
-              <label className="form-label">해당되는 항목</label>
+              <label className="form-label">
+                해당되는 항목 <span className="label-hint">· 선택, 복수 선택 가능</span>
+              </label>
               <div className="toggle-grid">
                 <TogglePill
                   checked={basicLivelihoodRecipient}
@@ -442,7 +478,9 @@ function MyPageInner() {
 
           <form className="roadmap-form" onSubmit={handleCreateRoadmap}>
             <div className="form-block roadmap-event-block">
-              <label className="form-label">분류</label>
+              <label className="form-label">
+                분류 <span className="wage-badge">필수</span>
+              </label>
               <OptionSelector
                 options={EVENT_OPTIONS}
                 value={eventType}
@@ -454,17 +492,23 @@ function MyPageInner() {
 
             <div className="two-col">
               <div className="form-block">
-                <label className="form-label">{dateLabel}</label>
+                <label className="form-label">
+                  {dateLabel} <span className="label-hint">· 선택</span>
+                </label>
                 <DateField value={retirementDate} onChange={setRetirementDate} />
               </div>
               <div className="form-block">
-                <label className="form-label">고용보험</label>
+                <label className="form-label">
+                  고용보험 <span className="wage-badge">필수</span>
+                </label>
                 <MonthStepper value={insuranceMonths} onChange={setInsuranceMonths} />
               </div>
             </div>
 
             <div className="form-block resignation-options">
-              <label className="form-label">퇴사(이직) 사유</label>
+              <label className="form-label">
+                퇴사(이직) 사유 <span className="wage-badge">필수</span>
+              </label>
               <OptionSelector
                 options={RESIGNATION_OPTIONS}
                 value={resignationReason}
@@ -475,7 +519,9 @@ function MyPageInner() {
 
             <div className="two-col">
               <div className="form-block compact">
-                <label className="form-label">다음 일자리</label>
+                <label className="form-label">
+                  다음 일자리 <span className="wage-badge">필수</span>
+                </label>
                 <OptionSelector
                   options={NEXT_JOB_OPTIONS}
                   value={nextJobStatus}
@@ -485,7 +531,9 @@ function MyPageInner() {
                 />
               </div>
               <div className="form-block compact">
-                <label className="form-label">현재 소득</label>
+                <label className="form-label">
+                  현재 소득 <span className="wage-badge">필수</span>
+                </label>
                 <OptionSelector
                   options={INCOME_OPTIONS}
                   value={incomeStatus}
@@ -498,14 +546,18 @@ function MyPageInner() {
 
             {nextJobStatus === "CONFIRMED" && (
               <div className="form-block roadmap-date-followup">
-                <label className="form-label">다음 일자리 시작일</label>
+                <label className="form-label">
+                  다음 일자리 시작일 <span className="label-hint">· 선택</span>
+                </label>
                 <DateField value={nextJobStartDate} onChange={setNextJobStartDate} />
               </div>
             )}
 
             <div className="wage-row">
               <div className="form-block">
-                <label className="form-label">나이 (만)</label>
+                <label className="form-label">
+                  나이 (만) <span className="wage-badge">필수</span>
+                </label>
                 <div className="won-input">
                   <input
                     className="text-input"
@@ -518,7 +570,9 @@ function MyPageInner() {
                 </div>
               </div>
               <div className="form-block">
-                <label className="form-label">근속연수</label>
+                <label className="form-label">
+                  근속연수 <span className="label-hint">· 선택</span>
+                </label>
                 <div className="won-input">
                   <input
                     className="text-input"
@@ -534,8 +588,10 @@ function MyPageInner() {
               </div>
             </div>
 
-            <button type="submit" className="btn grad" disabled={creating}>
-              {creating ? "생성 중…" : `${eventTypeLabel[eventType]} 로드맵 만들기`}
+            <button type="submit" className="btn grad" disabled={creating || !roadmapRequiredCompleted}>
+              {creating
+                ? "생성 중…"
+                : `${eventType ? eventTypeLabel[eventType] : "새"} 로드맵 만들기`}
             </button>
           </form>
         </aside>

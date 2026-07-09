@@ -4,6 +4,7 @@
 const TOKEN_KEY = "lift.accessToken";
 const DEMO_KEY = "lift.demoSession";
 const DEMO_TOKEN = "demo-local-session";
+const REPORT_PROGRESS_KEY = "lift.reportProgress";
 
 export function saveToken(token: string): void {
   if (typeof window === "undefined") return;
@@ -18,6 +19,7 @@ export function startDemoSession(): void {
       window.localStorage.removeItem(key);
     }
   }
+  window.localStorage.removeItem(REPORT_PROGRESS_KEY);
   window.localStorage.setItem(DEMO_KEY, "1");
   window.localStorage.setItem(TOKEN_KEY, DEMO_TOKEN);
 }
@@ -31,6 +33,7 @@ export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(DEMO_KEY);
+  window.localStorage.removeItem(REPORT_PROGRESS_KEY);
 }
 
 export function isDemoSession(): boolean {

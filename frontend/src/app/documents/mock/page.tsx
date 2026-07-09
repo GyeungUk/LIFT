@@ -1,10 +1,17 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AuthGuard } from "@/components/AuthGuard";
-import { openPdfFallbackWindow, safePdfFilename, savePdfBlob } from "@/lib/pdfExport";
+import {
+  createPdfObjectUrl,
+  isAppleMobileBrowser,
+  revokePdfObjectUrl,
+  safePdfFilename,
+  savePdfBlob,
+  sharePdfBlob,
+} from "@/lib/pdfExport";
 
 const DOC_PROFILES: Record<
   string,
@@ -152,12 +159,28 @@ function canvasToBlob(
   quality?: number,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    const fallback = () => {
+      try {
+        fetch(canvas.toDataURL(type, quality))
+          .then((res) => res.blob())
+          .then(resolve)
+          .catch(reject);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    if (!canvas.toBlob) {
+      fallback();
+      return;
+    }
+
     canvas.toBlob((blob) => {
       if (blob) {
         resolve(blob);
         return;
       }
-      reject(new Error("Canvas export failed."));
+      fallback();
     }, type, quality);
   });
 }
@@ -236,7 +259,7 @@ function makePdfFromImage(imageBytes: Uint8Array, width: number, height: number)
   return new Blob(chunks, { type: "application/pdf" });
 }
 
-async function downloadMockPdf({
+async function createMockPdf({
   profile,
   displayIssuer,
   source,
@@ -246,8 +269,7 @@ async function downloadMockPdf({
   displayIssuer: string;
   source: string;
   reportId: string;
-}) {
-  const fallbackWindow = openPdfFallbackWindow();
+}): Promise<{ blob: Blob; filename: string }> {
   const width = 1240;
   const height = 1754;
   const canvas = document.createElement("canvas");
@@ -255,7 +277,6 @@ async function downloadMockPdf({
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    fallbackWindow?.close();
     throw new Error("Canvas context is unavailable.");
   }
 
@@ -361,20 +382,20 @@ async function downloadMockPdf({
   ctx.font = "900 24px Apple SD Gothic Neo, Malgun Gothic, sans-serif";
   ctx.fillText("LIFT", 1090, 1676);
 
-  try {
-    const blob = await canvasToBlob(canvas, "image/jpeg", 0.96);
-    const buffer = await blob.arrayBuffer();
-    const pdf = makePdfFromImage(new Uint8Array(buffer), width, height);
-    await savePdfBlob(
-      pdf,
-      `${safePdfFilename(safeFilename(profile.title), "LIFT_document")}_${filenameDate()}.pdf`,
-      fallbackWindow,
-    );
-  } catch (error) {
-    fallbackWindow?.close();
-    throw error;
-  }
+  const blob = await canvasToBlob(canvas, "image/jpeg", 0.96);
+  const buffer = await blob.arrayBuffer();
+  const pdf = makePdfFromImage(new Uint8Array(buffer), width, height);
+  return {
+    blob: pdf,
+    filename: `${safePdfFilename(safeFilename(profile.title), "LIFT_document")}_${filenameDate()}.pdf`,
+  };
 }
+
+type PreparedPdf = {
+  blob: Blob;
+  filename: string;
+  url: string;
+};
 
 function MockDocumentInner() {
   const searchParams = useSearchParams();
@@ -386,16 +407,52 @@ function MockDocumentInner() {
   const displayIssuer = issuer || profile.issuer;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [preparedPdf, setPreparedPdf] = useState<PreparedPdf | null>(null);
+  const [appleMobile, setAppleMobile] = useState(false);
+
+  useEffect(() => {
+    setAppleMobile(isAppleMobileBrowser());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preparedPdf) {
+        revokePdfObjectUrl(preparedPdf.url);
+      }
+    };
+  }, [preparedPdf]);
 
   async function handleSavePdf() {
     setSaving(true);
     setSaveError(null);
     try {
-      await downloadMockPdf({ profile, displayIssuer, source, reportId });
+      const pdf = await createMockPdf({ profile, displayIssuer, source, reportId });
+      const url = createPdfObjectUrl(pdf.blob);
+      setPreparedPdf((prev) => {
+        if (prev) revokePdfObjectUrl(prev.url);
+        return { ...pdf, url };
+      });
+
+      if (!appleMobile) {
+        await savePdfBlob(pdf.blob, pdf.filename);
+      }
     } catch {
       setSaveError("PDF 파일 저장에 실패했어요. Safari나 Chrome에서 다시 시도해 주세요.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSharePreparedPdf() {
+    if (!preparedPdf) return;
+    setSaveError(null);
+    try {
+      const shared = await sharePdfBlob(preparedPdf.blob, preparedPdf.filename);
+      if (!shared) {
+        window.open(preparedPdf.url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      setSaveError("공유창을 열지 못했어요. 아래 '새 탭에서 PDF 열기'를 눌러 저장해 주세요.");
     }
   }
 
@@ -418,6 +475,32 @@ function MockDocumentInner() {
             </button>
           </div>
           {saveError && <div className="error-box">{saveError}</div>}
+          {preparedPdf && (
+            <div className="doc-save-panel">
+              <div>
+                <b>PDF 준비 완료</b>
+                <p>
+                  {appleMobile
+                    ? "iPhone에서는 아래 버튼을 한 번 더 눌러 공유 시트에서 '파일에 저장'을 선택해 주세요."
+                    : "다운로드가 시작되지 않으면 아래 버튼으로 다시 열 수 있어요."}
+                </p>
+              </div>
+              <div className="doc-save-actions">
+                <button type="button" className="btn" onClick={handleSharePreparedPdf}>
+                  공유/파일에 저장
+                </button>
+                <a
+                  className="btn secondary"
+                  href={preparedPdf.url}
+                  download={preparedPdf.filename}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  새 탭에서 PDF 열기
+                </a>
+              </div>
+            </div>
+          )}
 
           <article className="mock-doc-sheet">
             <header className="mock-doc-head">

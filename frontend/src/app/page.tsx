@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
+import { resolveReportNavigationPath } from "@/lib/reportProgress";
 
 export default function RootPage() {
   const router = useRouter();
@@ -17,16 +18,7 @@ export default function RootPage() {
     api
       .getLatestReportRoute()
       .then((target) => {
-        if (!target.available || !target.reportId) {
-          router.replace("/onboarding/life-event");
-          return;
-        }
-
-        router.replace(
-          target.paymentStatus === "PAID"
-            ? `/report/${target.reportId}`
-            : `/checkout?reportId=${target.reportId}`,
-        );
+        router.replace(resolveReportNavigationPath(target));
       })
       .catch(() => router.replace("/login"));
   }, [router]);

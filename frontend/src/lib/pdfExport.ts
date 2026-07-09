@@ -131,8 +131,9 @@ export async function savePdfBlob(
   const normalizedFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
   const file = new File([blob], normalizedFilename, { type: "application/pdf" });
   const shareNavigator = navigator as ShareNavigator;
+  const appleMobile = isAppleMobileBrowser();
 
-  if (shareNavigator.share && canShareFile(shareNavigator, file)) {
+  if (appleMobile && shareNavigator.share && canShareFile(shareNavigator, file)) {
     try {
       await shareNavigator.share({
         files: [file],
@@ -155,7 +156,7 @@ export async function savePdfBlob(
     return "opened";
   }
 
-  if (isAppleMobileBrowser()) {
+  if (appleMobile) {
     const opened = window.open(url, "_blank");
     if (!opened) {
       window.location.href = url;
@@ -173,6 +174,30 @@ export async function savePdfBlob(
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return "downloaded";
+}
+
+export function createPdfObjectUrl(blob: Blob): string {
+  return URL.createObjectURL(blob);
+}
+
+export function revokePdfObjectUrl(url: string): void {
+  URL.revokeObjectURL(url);
+}
+
+export async function sharePdfBlob(blob: Blob, filename: string): Promise<boolean> {
+  const normalizedFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+  const file = new File([blob], normalizedFilename, { type: "application/pdf" });
+  const shareNavigator = navigator as ShareNavigator;
+
+  if (!shareNavigator.share || !canShareFile(shareNavigator, file)) {
+    return false;
+  }
+
+  await shareNavigator.share({
+    files: [file],
+    title: normalizedFilename,
+  });
+  return true;
 }
 
 function canShareFile(navigatorApi: ShareNavigator, file: File): boolean {

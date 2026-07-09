@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
+import { resolveReportNavigationPath } from "@/lib/reportProgress";
 
 export default function SocialLoginCallbackPage() {
   const router = useRouter();
@@ -33,17 +34,7 @@ export default function SocialLoginCallbackPage() {
         }
 
         const target = await api.getLatestReportRoute();
-        if (!target.available || !target.reportId) {
-          router.replace("/onboarding/life-event");
-          return;
-        }
-
-        if (target.paymentStatus === "PAID") {
-          router.replace(`/report/${target.reportId}`);
-          return;
-        }
-
-        router.replace(`/checkout?reportId=${target.reportId}`);
+        router.replace(resolveReportNavigationPath(target));
       })
       .catch((e) => {
         const msg =

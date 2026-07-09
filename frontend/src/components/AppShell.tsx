@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
+import { rememberReportProgress, resolveReportNavigationPath } from "@/lib/reportProgress";
 
 export function AppShell({
   children,
@@ -15,10 +18,27 @@ export function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [reportNavigating, setReportNavigating] = useState(false);
+
+  useEffect(() => {
+    rememberReportProgress(pathname, window.location.search.replace(/^\?/, ""));
+  }, [pathname]);
 
   function handleLogout() {
     clearToken();
     router.replace("/login");
+  }
+
+  async function handleReportNavigation() {
+    setReportNavigating(true);
+    try {
+      const target = await api.getLatestReportRoute();
+      router.push(resolveReportNavigationPath(target));
+    } catch {
+      router.push(resolveReportNavigationPath(null));
+    } finally {
+      setReportNavigating(false);
+    }
   }
 
   function isActive(path: string) {
@@ -38,6 +58,21 @@ export function AppShell({
             <Link href="/my" className={`top-link ${isActive("/my") ? "active" : ""}`}>
               내 정보
             </Link>
+            <button
+              type="button"
+              className={`top-link top-link-button ${
+                isActive("/onboarding/life-event") ||
+                isActive("/assessment/new") ||
+                isActive("/report") ||
+                isActive("/checkout")
+                  ? "active"
+                  : ""
+              }`}
+              disabled={reportNavigating}
+              onClick={handleReportNavigation}
+            >
+              {reportNavigating ? "이동 중" : "보고서"}
+            </button>
             <Link
               href="/community"
               className={`top-link ${isActive("/community") ? "active" : ""}`}
